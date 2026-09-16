@@ -366,6 +366,7 @@ function sanitizeAuthStatus(status: {
   statusCode: number;
   user?: Record<string, unknown>;
   message?: string;
+  blocked?: "geo" | "bot";
 }) {
   return {
     authenticated: status.authenticated,
@@ -375,6 +376,8 @@ function sanitizeAuthStatus(status: {
       email_present: typeof status.user?.email === "string" && status.user.email.length > 0,
       name_present: typeof status.user?.name === "string" && status.user.name.length > 0,
     },
+    // "geo" = OpenEvidence location restriction (needs VPN), "bot" = DataDome challenge (needs login:session).
+    blocked: status.blocked,
     message: status.message,
   };
 }

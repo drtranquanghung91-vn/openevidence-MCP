@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.3.0] - 2026-07-06
 
 ### Added
+- Detection of OpenEvidence's location-restriction ("Unavailable") page: `oe_auth_status` now returns `blocked: "geo"` with VPN guidance instead of a misleading "not authenticated", and `oe_ask`/`oe_history_list`/`oe_article_get` fail with the same actionable message.
 - `oe_citations_get` tool for structured citation extraction and BibTeX export, with optional Crossref DOI enrichment.
 - Citation extraction on normalized article payloads via the `citations` field.
 - Explicit `timed_out` flags for article waiting flows so agents can distinguish incomplete results from failures.

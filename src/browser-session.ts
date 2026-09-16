@@ -24,6 +24,41 @@ export function isBotChallengePage(html: string): boolean {
   return html.includes("captcha-delivery.com") || /\bvar\s+dd\s*=\s*\{[^}]*'rt'/.test(html);
 }
 
+export const GEO_BLOCK_MESSAGE =
+  "OpenEvidence is refusing this connection because of its network location: instead of the app it returned its 'Unavailable' page " +
+  "(\"OpenEvidence is not available in your location at this time\"). This is not a login problem and re-running login:session will not help, " +
+  "because the saved browser session is fine. OpenEvidence is geo-restricted, so the machine running this MCP server must reach openevidence.com " +
+  "from a supported region. Ask the user to connect the VPN they normally use for OpenEvidence (or otherwise route this machine through a supported region), then retry this tool.";
+
+/**
+ * OpenEvidence geo-blocks some regions and serves a static "Unavailable" page
+ * (HTTP 200, HTML) for every route, including /api/auth/me. Detect it so we do
+ * not misreport a healthy session as "not authenticated".
+ */
+export function isGeoBlockedPage(html: string): boolean {
+  return (
+    /not available in your location/i.test(html) ||
+    /Transfer Restriction Notice/i.test(html) ||
+    /<title>[^<]*\bUnavailable\b[^<]*OpenEvidence[^<]*<\/title>/i.test(html)
+  );
+}
+
+export type BlockedPageKind = "geo" | "bot";
+
+export function classifyBlockedPage(html: string): BlockedPageKind | null {
+  if (isGeoBlockedPage(html)) {
+    return "geo";
+  }
+  if (isBotChallengePage(html)) {
+    return "bot";
+  }
+  return null;
+}
+
+export function blockedPageMessage(kind: BlockedPageKind): string {
+  return kind === "geo" ? GEO_BLOCK_MESSAGE : BOT_CHALLENGE_MESSAGE;
+}
+
 interface BrowserFetchResult {
   status: number;
   contentType: string;
@@ -64,9 +99,20 @@ export class BrowserSession {
     await context?.close().catch(() => undefined);
   }
 
-  async getAuthStatus(): Promise<{ authenticated: boolean; statusCode: number; user?: Record<string, unknown>; message?: string }> {
+  async getAuthStatus(): Promise<{ authenticated: boolean; statusCode: number; user?: Record<string, unknown>; message?: string; blocked?: BlockedPageKind }> {
     return this.runExclusive(async () => {
       const result = await this.browserFetch("/api/auth/me");
+      if (result.status !== 200 || !isRecord(result.data)) {
+        const blocked = await this.detectBlockedPage(result.text);
+        if (blocked) {
+          return {
+            authenticated: false,
+            statusCode: result.status,
+            blocked,
+            message: blockedPageMessage(blocked),
+          };
+        }
+      }
       if (result.status !== 200) {
         return {
           authenticated: false,
@@ -264,7 +310,31 @@ export class BrowserSession {
     if (result.status < 200 || result.status >= 300) {
       throw new Error(`GET ${path} failed with status ${result.status}.`);
     }
+    if (result.data === null && !result.contentType.toLowerCase().includes("json")) {
+      const blocked = await this.detectBlockedPage(result.text);
+      if (blocked) {
+        throw new Error(blockedPageMessage(blocked));
+      }
+    }
     return result.data;
+  }
+
+  /**
+   * browserFetch keeps only a short, redacted prefix of the response body, so
+   * also inspect the live page (title + visible text) that ensureOpenEvidencePage
+   * loaded: geo-block and DataDome pages replace the app there as well.
+   */
+  private async detectBlockedPage(responseText: string): Promise<BlockedPageKind | null> {
+    const direct = classifyBlockedPage(responseText);
+    if (direct) {
+      return direct;
+    }
+    const page = this.page && !this.page.isClosed() ? this.page : null;
+    if (!page) {
+      return null;
+    }
+    const live = await readLivePageText(page);
+    return classifyBlockedPage(live);
   }
 
   private async runExclusive<T>(fn: () => Promise<T>): Promise<T> {
@@ -293,12 +363,20 @@ async function fillQuestion(page: Page, question: string): Promise<void> {
   ]);
   if (!input) {
     const html = await page.content().catch(() => "");
-    if (isBotChallengePage(html)) {
-      throw new Error(BOT_CHALLENGE_MESSAGE);
+    const blocked = classifyBlockedPage(`${html}\n${await readLivePageText(page)}`);
+    if (blocked) {
+      throw new Error(blockedPageMessage(blocked));
     }
     throw new Error("Could not find the OpenEvidence question input. The OpenEvidence UI may have changed.");
   }
   await input.fill(question);
+}
+
+/** Title plus rendered text of the current page, formatted so the blocked-page matchers apply. */
+async function readLivePageText(page: Page): Promise<string> {
+  return page
+    .evaluate(() => `<title>${document.title}</title>\n${document.body?.innerText ?? ""}`)
+    .catch(() => "");
 }
 
 async function clickSubmit(page: Page): Promise<void> {

@@ -56,6 +56,15 @@ npm run login:session
 
 Do not use stealth flags, cookie-copying browser extensions, or instructions that bypass Google, OpenEvidence, institution, regional, or account controls.
 
+## Location Restriction Page ("OpenEvidence is not available in your location")
+
+If `oe_auth_status` reports `authenticated: false` with `blocked: "geo"`, or `oe_ask`/`oe_history_list` return an error mentioning a **network location** / **Unavailable page**, OpenEvidence served its static "Unavailable" page (HTTP 200, HTML) instead of the app. OpenEvidence is geo-restricted, and every route — including `/api/auth/me` — is replaced by that page, so without this detection the server would misreport a healthy session as "not authenticated".
+
+This is not a login problem. The saved browser profile is fine and `npm run login:session` will not help.
+
+Fix it by making the machine that runs the MCP server reach `openevidence.com` from a supported region — typically by connecting the VPN you normally use for OpenEvidence — then retry the tool. `npm run smoke` is a quick way to confirm the route is open again.
+
+Do not attempt to hide the client's location from OpenEvidence beyond using the network you are entitled to use; this server only reports the restriction so the user can act on it.
 ## Anti-Bot Verification Page (DataDome)
 
 If `oe_ask` returns an error mentioning an **anti-bot verification page**, OpenEvidence's protection layer (DataDome) served a verification interstitial to the local MCP browser profile instead of the app. Read-only tools (`oe_auth_status`, `oe_history_list`, `oe_article_get`) usually keep working; only new question submission is affected.
