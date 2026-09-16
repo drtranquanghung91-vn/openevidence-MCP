@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Table` widgets in answers are rendered as markdown pipe tables (from `table_text`, falling back to `table_data`).
 - Raw `<h2>`/`<h3>`/`<h4>` headings in answers are converted to markdown headings.
 
+### Changed
+- `oe_ask` now sets the model dropdown on every call; an omitted `model` actively resets it to Osler instead of reusing whatever the profile last selected. If the model selector is absent, an explicit `model` fails loudly; an omitted `model` proceeds with the page's current model.
+
 ### Fixed
 - Snow answers lost their summary tables because the `Table` widget was treated as unknown and dropped.
 

@@ -67,7 +67,7 @@ selectModel(page, model):
 
 Label mapping: `osler → "Osler"`, `sackett → "Sackett"`, `snow → "Snow"` (match on the leading word of the menu item / trigger `textContent`, case-sensitive, because the description line is concatenated into `textContent`).
 
-Failure policy: a model-selection failure is a hard error for that ask (the caller asked for a specific model; silently submitting with another one would be wrong). The error message names the requested model and says the OpenEvidence UI may have changed. If the model trigger is not found at all, the blocked-page classifier (`classifyBlockedPage`) is consulted first so a DataDome/geo page still yields the actionable blocked message rather than a confusing "model selector not found".
+Failure policy: a model-selection failure is a hard error for that ask (the caller asked for a specific model; silently submitting with another one would be wrong). The error message names the requested model and says the OpenEvidence UI may have changed. If the model trigger is not found at all, the blocked-page classifier (`classifyBlockedPage`) is consulted first so a DataDome/geo page still yields the actionable blocked message rather than a confusing "model selector not found". This hard-failure rule applies only when the caller explicitly passed `model`; if `model` was omitted (an implicit default) and the trigger is simply absent (not blocked), the ask proceeds with the page's current model instead of failing.
 
 Post-submit verification: when `waitForPostArticle` returns the created article, `ask()` compares `data.inputs.model_profile_name` with the requested model; a mismatch is returned to the caller as an error whose text includes the article id (the article was still created on OE, so nothing is lost).
 
