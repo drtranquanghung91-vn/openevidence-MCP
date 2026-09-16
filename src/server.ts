@@ -25,7 +25,8 @@ import { citationsToBibtex } from "./bibtex.js";
 import { ensureConfigDirs, resolveConfig } from "./config.js";
 import { sanitizeHistoryPayload } from "./history.js";
 import { extractAnswerText, OpenEvidenceClient } from "./openevidence-client.js";
-import type { OpenEvidenceAskRequest } from "./types.js";
+import type { OpenEvidenceAskRequest, OpenEvidenceModel } from "./types.js";
+import { OPENEVIDENCE_MODELS } from "./types.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require("../package.json") as { version: string };
@@ -192,7 +193,7 @@ server.registerTool(
   {
     title: "OpenEvidence Ask",
     description:
-      "Create an OpenEvidence research question, not medical advice or patient-specific diagnosis. For long questions, prefer wait_for_completion=false and then call oe_article_wait with the returned article_id. Use original_article_id only for true follow-up continuity; omit it for fresh questions. Returns privacy-reduced created article data and optionally normalized completed fields. Side effect: creates a question/article in the user's OpenEvidence account through the local browser profile.",
+      "Create an OpenEvidence research question, not medical advice or patient-specific diagnosis. Choose the answer model with `model`: osler (default; direct answer, typically under 90 s), sackett (comprehensive answer for complex cases, ~30 s), or snow (deep long-form research with sections, tables and 30-60 citations; typically 4-7 min). For snow or other long questions, prefer wait_for_completion=false and then call oe_article_wait with the returned article_id. Use original_article_id only for true follow-up continuity; omit it for fresh questions. Returns privacy-reduced created article data (including model_profile_name) and optionally normalized completed fields. Side effect: creates a question/article in the user's OpenEvidence account through the local browser profile.",
     annotations: {
       readOnlyHint: false,
       idempotentHint: false,
@@ -200,8 +201,9 @@ server.registerTool(
     inputSchema: z.object({
       question: z.string().min(3).max(6000),
       original_article_id: z.string().uuid().optional(),
+      model: z.enum(OPENEVIDENCE_MODELS as [string, ...string[]]).default("osler").optional(),
       wait_for_completion: z.boolean().default(true).optional(),
-      timeout_sec: z.number().int().min(5).max(600).default(120).optional(),
+      timeout_sec: z.number().int().min(5).max(900).default(120).optional(),
       poll_interval_ms: z.number().int().min(300).max(10000).default(1200).optional(),
     }),
   },
@@ -210,6 +212,7 @@ server.registerTool(
       const askPayload: OpenEvidenceAskRequest = {
         question: args.question,
         originalArticleId: args.original_article_id,
+        model: (args.model ?? "osler") as OpenEvidenceModel,
       };
 
       const created = await client.ask(askPayload);
@@ -383,13 +386,21 @@ function sanitizeAuthStatus(status: {
 }
 
 function sanitizeCreatedArticle(article: Record<string, unknown>) {
+  const inputs = isRecordLike(article.inputs) ? article.inputs : {};
+  const fromInputs = typeof inputs.model_profile_name === "string" ? inputs.model_profile_name : null;
+  const fromTopLevel = typeof article.model_profile_name === "string" ? article.model_profile_name : null;
   return {
     article_id: typeof article.id === "string" ? article.id : null,
     status: typeof article.status === "string" ? article.status : null,
     article_type: typeof article.article_type === "string" ? article.article_type : null,
+    model_profile_name: fromInputs ?? fromTopLevel,
     datetime_created:
       typeof article.datetime_created === "string" ? article.datetime_created : null,
   };
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function main() {

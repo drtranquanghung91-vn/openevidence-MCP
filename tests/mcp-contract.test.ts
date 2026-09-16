@@ -49,17 +49,24 @@ test("MCP server exposes agent instructions and expected tools", async () => {
     assert.equal(byName.get("oe_citations_get")?.annotations?.readOnlyHint, true);
 
     // The oe_ask schema must only advertise inputs the server actually honors.
-    const askSchema = byName.get("oe_ask")?.inputSchema as { properties?: Record<string, unknown> };
+    const askSchema = byName.get("oe_ask")?.inputSchema as {
+      properties?: Record<string, { enum?: string[]; default?: unknown; maximum?: number }>;
+    };
     const askInputs = Object.keys(askSchema?.properties ?? {}).sort();
     assert.deepEqual(askInputs, [
+      "model",
       "original_article_id",
       "poll_interval_ms",
       "question",
       "timeout_sec",
       "wait_for_completion",
     ]);
+    assert.deepEqual(askSchema?.properties?.model?.enum, ["osler", "sackett", "snow"]);
+    assert.equal(askSchema?.properties?.model?.default, "osler");
+    assert.equal(askSchema?.properties?.timeout_sec?.maximum, 900);
 
     assert.match(byName.get("oe_ask")?.description ?? "", /wait_for_completion=false/);
+    assert.match(byName.get("oe_ask")?.description ?? "", /snow/i);
     assert.match(byName.get("oe_article_wait")?.description ?? "", /long research questions/);
 
     const prompts = await client.request(
