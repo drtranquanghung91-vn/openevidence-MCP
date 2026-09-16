@@ -3,7 +3,9 @@ import { chromium, type BrowserContext, type Page, type Response } from "playwri
 
 import type { AppConfig } from "./config.js";
 import { classifyWriteFailure } from "./errors.js";
+import { DEFAULT_MODEL, ModelSelectError, selectModel, verifyCreatedModel } from "./model-selection.js";
 import { findSystemBrowser } from "./system-browser.js";
+import type { OpenEvidenceModel } from "./types.js";
 
 const DEFAULT_ARTICLE_TYPE = "Ask OpenEvidence Light with citations";
 const ARTICLE_ID_RE = /\/ask\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
@@ -76,6 +78,8 @@ interface PostArticleResult {
 export interface BrowserAskPayload {
   question: string;
   originalArticleId?: string;
+  articleType?: string;
+  model?: OpenEvidenceModel;
 }
 
 export class BrowserSession {
@@ -160,41 +164,62 @@ export class BrowserSession {
 
   async ask(payload: BrowserAskPayload): Promise<Record<string, unknown>> {
     return this.runExclusive(async () => {
+      const model = payload.model ?? DEFAULT_MODEL;
       const page = await this.pageForAsk(payload.originalArticleId);
       const previousArticleId = extractArticleId(page.url());
+      await this.selectModelOrExplain(page, model);
       await fillQuestion(page, payload.question);
 
       const postResponsePromise = waitForPostArticle(page);
       const routeArticlePromise = waitForNewArticleId(page, previousArticleId);
       await clickSubmit(page);
 
+      const pending = (id: string) => ({
+        id,
+        status: "pending",
+        article_type: payload.articleType ?? DEFAULT_ARTICLE_TYPE,
+        model_profile_name: model,
+      });
+
       const first = await Promise.race([postResponsePromise, routeArticlePromise]);
       if (typeof first === "string") {
-        return {
-          id: first,
-          status: "pending",
-          article_type: DEFAULT_ARTICLE_TYPE,
-        };
+        return pending(first);
       }
 
       if (first) {
         assertWriteSucceeded(first);
         if (isRecord(first.data) && typeof first.data.id === "string") {
-          return first.data;
+          const mismatch = verifyCreatedModel(first.data, model);
+          if (mismatch) {
+            throw new Error(mismatch);
+          }
+          return { ...first.data, model_profile_name: model };
         }
       }
 
       const fallbackArticleId = await routeArticlePromise;
       if (fallbackArticleId) {
-        return {
-          id: fallbackArticleId,
-          status: "pending",
-          article_type: DEFAULT_ARTICLE_TYPE,
-        };
+        return pending(fallbackArticleId);
       }
 
       throw new Error("OpenEvidence question submit did not return an article id.");
     });
+  }
+
+  /** Select the model; if the selector is missing, prefer the blocked-page explanation over a UI error. */
+  private async selectModelOrExplain(page: Page, model: OpenEvidenceModel): Promise<void> {
+    try {
+      await selectModel(page, model);
+    } catch (error) {
+      if (error instanceof ModelSelectError && error.reason === "trigger_missing") {
+        const html = await page.content().catch(() => "");
+        const blocked = classifyBlockedPage(`${html}\n${await readLivePageText(page)}`);
+        if (blocked) {
+          throw new Error(blockedPageMessage(blocked));
+        }
+      }
+      throw error;
+    }
   }
 
   private async launch(): Promise<void> {
