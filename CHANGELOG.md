@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] - 2026-09-16
+
+### Added
+- `oe_ask.model` — choose the OpenEvidence answer model: `osler` (default), `sackett`, or `snow` (deep long-form research). The selection is made in the OpenEvidence UI before submitting and verified against the created article's `model_profile_name`, which is now returned in the `created` payload.
+- `oe_ask.timeout_sec` may now be up to 900 seconds so a Snow answer can be awaited in one call.
+- `Table` widgets in answers are rendered as markdown pipe tables (from `table_text`, falling back to `table_data`).
+- Raw `<h2>`/`<h3>`/`<h4>` headings in answers are converted to markdown headings.
+
+### Fixed
+- Snow answers lost their summary tables because the `Table` widget was treated as unknown and dropped.
+
 ## [0.3.0] - 2026-07-06
 
 ### Added

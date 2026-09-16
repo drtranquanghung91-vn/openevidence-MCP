@@ -59,3 +59,9 @@ Record:
 - Whether `oe_ask` returned an `article_id`.
 
 Do not include cookies, browser profile files, storage-state files, private screenshots, account identifiers, patient data, or raw OpenEvidence answers unless you are working in a private local terminal.
+
+## v0.3.1 — model selection
+
+1. `oe_ask` with `model: "sackett"`, `wait_for_completion: true` → `created.model_profile_name === "sackett"`.
+2. `oe_ask` with `model: "snow"`, `wait_for_completion: false` → `oe_article_wait` with `timeout_sec: 900` → `answer_text` contains `## ` headings and at least one `| … |` table row; `citations.length >= 30`.
+3. `oe_ask` without `model` right after step 2 → `created.model_profile_name === "osler"` (previous selection did not leak).

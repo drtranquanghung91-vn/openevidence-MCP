@@ -192,3 +192,9 @@ Open an issue with:
 - reproduction steps.
 
 Do not include cookies, tokens, browser profile files, storage-state files, private screenshots, patient data, or account identifiers.
+
+## Model Selector Not Found / Model Mismatch
+
+`oe_ask` selects the requested `model` (Osler, Sackett or Snow) in the dropdown next to the question box before submitting. If it reports that the selector button or the option was not found, first check `oe_auth_status` — a DataDome or location-restriction page hides the whole ask UI. Otherwise the OpenEvidence UI has probably changed; open an issue with the error text (no account data).
+
+If it reports that the created article used a different model than requested, the article still exists in your account (its id is in the error); fetch it with `oe_article_get` or retry the question.

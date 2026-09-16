@@ -17,6 +17,7 @@ Translations: [Русский](README.ru.md) | [Español](README.es.md) | [简�
 > **Fork notes (drtranquanghung91-vn/openevidence-MCP)** — based on upstream `feat/v0.3.0-cleanup-and-features` plus:
 > - Detection of OpenEvidence's location-restriction ("not available in your location") page. `oe_auth_status` now returns `blocked: "geo"` with VPN guidance instead of a misleading `authenticated: false`, and `oe_ask` / `oe_history_list` / `oe_article_get` raise the same actionable message. See `docs/TROUBLESHOOTING.md` → *Location Restriction Page*.
 > - OpenEvidence is geo-restricted (e.g. not reachable from Vietnam); run the MCP server from a supported region or through a VPN.
+> - `oe_ask.model` (`osler` / `sackett` / `snow`) plus markdown rendering of Snow tables and headings (v0.3.1).
 
 ## How it works
 
@@ -79,7 +80,7 @@ For the comprehensive, step-by-step setup playbook and rules, see **[docs/AGENT_
 | `oe_history_list` | Lists prior OpenEvidence articles with optional pagination and search. Returns a privacy-reduced list unless `include_raw=true` is explicitly requested. | Yes. | None. |
 | `oe_article_get` | Fetches an article by ID and returns normalized fields (`status`, `is_complete`, `question`, `answer_text`, `citations`). Raw payload is opt-in with `include_raw=true`. | Yes. | None. |
 | `oe_article_wait` | Waits for an existing article ID to complete; returns `timed_out=true` when the timeout elapsed before completion. | Yes. | None. |
-| `oe_ask` | Creates an OpenEvidence research question and optionally waits for the article to complete. Set `wait_for_completion=false` for fire-and-forget. | Yes. | Creates a question/article in your OpenEvidence account. |
+| `oe_ask` | Creates an OpenEvidence research question and optionally waits for the article to complete. `model` selects `osler` (default, fast), `sackett` (complex cases) or `snow` (deep long-form research, 4–7 min). Set `wait_for_completion=false` for fire-and-forget. | Yes. | Creates a question/article in your OpenEvidence account. |
 | `oe_citations_get` | Extracts structured citations from a completed article and returns JSON + BibTeX. `validate_crossref=true` enriches DOI entries with Crossref metadata. | Yes. | None. |
 
 ## Tested / Target Clients
