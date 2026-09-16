@@ -14,6 +14,10 @@
 
 Translations: [Русский](README.ru.md) | [Español](README.es.md) | [简体中文](README.zh-Hans.md) | [繁體中文（台灣）](README.zh-Hant-TW.md) | [한국어](README.ko.md) | [हिन्दी](README.hi.md)
 
+> **Fork notes (drtranquanghung91-vn/openevidence-MCP)** — based on upstream `feat/v0.3.0-cleanup-and-features` plus:
+> - Detection of OpenEvidence's location-restriction ("not available in your location") page. `oe_auth_status` now returns `blocked: "geo"` with VPN guidance instead of a misleading `authenticated: false`, and `oe_ask` / `oe_history_list` / `oe_article_get` raise the same actionable message. See `docs/TROUBLESHOOTING.md` → *Location Restriction Page*.
+> - OpenEvidence is geo-restricted (e.g. not reachable from Vietnam); run the MCP server from a supported region or through a VPN.
+
 ## How it works
 
 ```
