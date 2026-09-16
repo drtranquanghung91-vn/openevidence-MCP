@@ -64,7 +64,9 @@ async function currentLabel(trigger: ModelSelectorLocator): Promise<string> {
  */
 export async function selectModel(page: ModelSelectorPage, model: OpenEvidenceModel): Promise<void> {
   const trigger = page.locator(TRIGGER_SELECTOR, { hasText: ANY_MODEL_RE }).first();
-  if ((await trigger.count()) === 0) {
+  try {
+    await trigger.waitFor({ timeout: SELECT_TIMEOUT_MS });
+  } catch {
     throw new ModelSelectError(model, "trigger_missing");
   }
   const wanted = MODEL_LABELS[model];
@@ -89,6 +91,15 @@ export async function selectModel(page: ModelSelectorPage, model: OpenEvidenceMo
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new ModelSelectError(model, "not_applied");
+}
+
+/**
+ * True only when a model-selection failure should be tolerated instead of rethrown:
+ * the trigger button itself was not found, and the caller did not explicitly ask
+ * for a model (an implicit default should proceed with the page's current model).
+ */
+export function shouldTolerateMissingTrigger(error: unknown, explicit: boolean): boolean {
+  return error instanceof ModelSelectError && error.reason === "trigger_missing" && !explicit;
 }
 
 /**

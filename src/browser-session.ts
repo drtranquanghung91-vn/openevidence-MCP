@@ -3,7 +3,13 @@ import { chromium, type BrowserContext, type Page, type Response } from "playwri
 
 import type { AppConfig } from "./config.js";
 import { classifyWriteFailure } from "./errors.js";
-import { DEFAULT_MODEL, ModelSelectError, selectModel, verifyCreatedModel } from "./model-selection.js";
+import {
+  DEFAULT_MODEL,
+  ModelSelectError,
+  selectModel,
+  shouldTolerateMissingTrigger,
+  verifyCreatedModel,
+} from "./model-selection.js";
 import { findSystemBrowser } from "./system-browser.js";
 import type { OpenEvidenceModel } from "./types.js";
 
@@ -165,9 +171,10 @@ export class BrowserSession {
   async ask(payload: BrowserAskPayload): Promise<Record<string, unknown>> {
     return this.runExclusive(async () => {
       const model = payload.model ?? DEFAULT_MODEL;
+      const explicit = payload.model !== undefined;
       const page = await this.pageForAsk(payload.originalArticleId);
       const previousArticleId = extractArticleId(page.url());
-      await this.selectModelOrExplain(page, model);
+      await this.selectModelOrExplain(page, model, explicit);
       await fillQuestion(page, payload.question);
 
       const postResponsePromise = waitForPostArticle(page);
@@ -206,8 +213,13 @@ export class BrowserSession {
     });
   }
 
-  /** Select the model; if the selector is missing, prefer the blocked-page explanation over a UI error. */
-  private async selectModelOrExplain(page: Page, model: OpenEvidenceModel): Promise<void> {
+  /**
+   * Select the model; if the selector is missing, prefer the blocked-page explanation
+   * over a UI error. When the caller did not explicitly request a model (an implicit
+   * default) and the selector is simply absent (not blocked), proceed with the page's
+   * current model instead of hard-failing.
+   */
+  private async selectModelOrExplain(page: Page, model: OpenEvidenceModel, explicit: boolean): Promise<void> {
     try {
       await selectModel(page, model);
     } catch (error) {
@@ -216,6 +228,10 @@ export class BrowserSession {
         const blocked = classifyBlockedPage(`${html}\n${await readLivePageText(page)}`);
         if (blocked) {
           throw new Error(blockedPageMessage(blocked));
+        }
+        if (shouldTolerateMissingTrigger(error, explicit)) {
+          process.stderr.write("[openevidence-mcp] model selector not found; submitting with the page's current model.\n");
+          return;
         }
       }
       throw error;

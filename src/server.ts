@@ -24,8 +24,9 @@ import { normalizeArticleResult } from "./article.js";
 import { citationsToBibtex } from "./bibtex.js";
 import { ensureConfigDirs, resolveConfig } from "./config.js";
 import { sanitizeHistoryPayload } from "./history.js";
+import { DEFAULT_MODEL } from "./model-selection.js";
 import { extractAnswerText, OpenEvidenceClient } from "./openevidence-client.js";
-import type { OpenEvidenceAskRequest, OpenEvidenceModel } from "./types.js";
+import type { OpenEvidenceAskRequest } from "./types.js";
 import { OPENEVIDENCE_MODELS } from "./types.js";
 
 const require = createRequire(import.meta.url);
@@ -47,7 +48,7 @@ const server = new McpServer({
     "Use oe_history_list to find recent OpenEvidence article IDs, and oe_article_get to fetch an existing article.",
     "Use oe_citations_get to export structured citations and BibTeX from a completed article.",
     "Use oe_ask only for OpenEvidence evidence-research questions. Do not present outputs as medical advice, diagnosis, or clinical orders.",
-    "For long research questions, prefer oe_ask with wait_for_completion=false, then call oe_article_wait or oe_article_get with the returned article_id. Some MCP hosts time out long blocking calls.",
+    "For long research questions, prefer oe_ask with wait_for_completion=false, then call oe_article_wait or oe_article_get with the returned article_id. Some MCP hosts time out long blocking calls. Choose model=snow for deep long-form research (4-7 min) and always use wait_for_completion=false for it.",
     "Use original_article_id only when the user explicitly wants follow-up continuity in that OpenEvidence thread. For fresh questions, omit original_article_id to avoid stale thread context.",
     "Never ask for or expose passwords, cookies, browser profile files, storage-state files, session tokens, account identifiers, screenshots with private account data, or patient-identifiable information.",
   ].join(" "),
@@ -201,7 +202,7 @@ server.registerTool(
     inputSchema: z.object({
       question: z.string().min(3).max(6000),
       original_article_id: z.string().uuid().optional(),
-      model: z.enum(OPENEVIDENCE_MODELS as [string, ...string[]]).default("osler").optional(),
+      model: z.enum(OPENEVIDENCE_MODELS).default(DEFAULT_MODEL).optional(),
       wait_for_completion: z.boolean().default(true).optional(),
       timeout_sec: z.number().int().min(5).max(900).default(120).optional(),
       poll_interval_ms: z.number().int().min(300).max(10000).default(1200).optional(),
@@ -212,7 +213,7 @@ server.registerTool(
       const askPayload: OpenEvidenceAskRequest = {
         question: args.question,
         originalArticleId: args.original_article_id,
-        model: (args.model ?? "osler") as OpenEvidenceModel,
+        model: args.model ?? DEFAULT_MODEL,
       };
 
       const created = await client.ask(askPayload);

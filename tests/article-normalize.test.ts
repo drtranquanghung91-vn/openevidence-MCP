@@ -243,3 +243,7 @@ test("convertHtmlHeadings turns h2/h3/h4 into markdown headings and leaves other
 test("renderReactComponents converts headings even when no widget is present", () => {
   assert.equal(renderReactComponents("<h2>Only heading</h2>\nBody"), "## Only heading\n\nBody");
 });
+
+test("convertHtmlHeadings tolerates attributes on the heading tag", () => {
+  assert.equal(convertHtmlHeadings('<h2 class="x">Scope</h2>'), "\n## Scope\n");
+});

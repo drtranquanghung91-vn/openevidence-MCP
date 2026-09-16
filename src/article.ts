@@ -148,7 +148,7 @@ export function renderReactComponents(text: string): string {
  * headings. Convert them to markdown so answer_text stays plain markdown.
  */
 export function convertHtmlHeadings(text: string): string {
-  return text.replace(/<h([2-4])>(.*?)<\/h\1>/gi, (_match, level: string, inner: string) => {
+  return text.replace(/<h([2-4])(?:\s[^>]*)?>(.*?)<\/h\1>/gi, (_match, level: string, inner: string) => {
     const hashes = "#".repeat(Number(level));
     return `\n${hashes} ${inner.trim()}\n`;
   });

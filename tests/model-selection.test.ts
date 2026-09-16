@@ -6,6 +6,7 @@ import {
   MODEL_LABELS,
   ModelSelectError,
   selectModel,
+  shouldTolerateMissingTrigger,
   verifyCreatedModel,
   type ModelSelectorLocator,
   type ModelSelectorPage,
@@ -112,6 +113,13 @@ test("selectModel throws trigger_missing when there is no model button", async (
     assert.equal(error.reason, "trigger_missing");
     return true;
   });
+});
+
+test("shouldTolerateMissingTrigger is true only for trigger_missing on an implicit (unspecified) model", () => {
+  assert.equal(shouldTolerateMissingTrigger(new ModelSelectError("osler", "trigger_missing"), false), true);
+  assert.equal(shouldTolerateMissingTrigger(new ModelSelectError("osler", "trigger_missing"), true), false);
+  assert.equal(shouldTolerateMissingTrigger(new ModelSelectError("osler", "option_missing"), false), false);
+  assert.equal(shouldTolerateMissingTrigger(new Error("boom"), false), false);
 });
 
 test("verifyCreatedModel accepts matching or absent model_profile_name and rejects a mismatch", () => {
