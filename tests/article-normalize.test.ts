@@ -7,6 +7,7 @@ import {
   normalizeArticleResult,
   formatCitations,
   renderReactComponents,
+  convertHtmlHeadings,
 } from "../src/article.js";
 
 test("extractAnswerText prefers current article output over history fallback", () => {
@@ -196,12 +197,49 @@ test("normalizeArticleResult strips REACTCOMPONENT blocks from answer_text", () 
 
 test("formatCitations cleans up raw OpenEvidence formatting and builds bibliography", () => {
   const rawText = "Lisinopril starting dose is <strong>10 mg once daily</strong>.[[[$$$Food and Drug Administration. <a target=\"_blank\" href=\"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=838\">Zestril</a>. 2025.$$$]!!![$$$Food and Drug Administration. <a target=\"_blank\" href=\"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=9f6\">Qbrelis</a>. 2025.$$$]]]";
-  
+
   const formatted = formatCitations(rawText);
-  
+
   assert.match(formatted, /\*\*10 mg once daily\*\*/);
   assert.match(formatted, /\[1, 2\]/);
   assert.match(formatted, /### References/);
   assert.match(formatted, /1\. Food and Drug Administration\. \[Zestril\]\(https:\/\/dailymed\.nlm\.nih\.gov\/dailymed\/drugInfo\.cfm\?setid=838\)\. 2025\./);
   assert.match(formatted, /2\. Food and Drug Administration\. \[Qbrelis\]\(https:\/\/dailymed\.nlm\.nih\.gov\/dailymed\/drugInfo\.cfm\?setid=9f6\)\. 2025\./);
+});
+
+test("renderReactComponents renders a Table widget from table_text", () => {
+  const raw =
+    'Summary:\n\nREACTCOMPONENT!:!Table!:!{"table_data": [{"Intervention": "Lifestyle", "Effect": "modest"}], "table_text": "| Intervention | Effect |\\n|---|---|\\n| Lifestyle | modest |"}\n\nAfter.';
+
+  const cleaned = renderReactComponents(raw);
+
+  assert.equal(cleaned.includes("REACTCOMPONENT"), false);
+  assert.match(cleaned, /\| Intervention \| Effect \|\n\|---\|---\|\n\| Lifestyle \| modest \|/);
+  assert.match(cleaned, /After\./);
+});
+
+test("renderReactComponents builds a Table from table_data when table_text is absent", () => {
+  const raw =
+    'REACTCOMPONENT!:!Table!:!{"table_data": [{"Drug": "Metformin", "Note": "a|b\\nc"}, {"Drug": "Letrozole", "Note": "first-line"}]}';
+
+  const cleaned = renderReactComponents(raw);
+
+  assert.equal(cleaned, "| Drug | Note |\n|---|---|\n| Metformin | a\\|b c |\n| Letrozole | first-line |");
+});
+
+test("renderReactComponents drops a Table widget with neither table_text nor table_data", () => {
+  const raw = 'Before.\n\nREACTCOMPONENT!:!Table!:!{"title": "empty"}\n\nAfter.';
+  assert.equal(renderReactComponents(raw), "Before.\n\nAfter.");
+});
+
+test("convertHtmlHeadings turns h2/h3/h4 into markdown headings and leaves other tags alone", () => {
+  const raw = "Intro <b>bold</b>\n<h2>Scope and Framing</h2>\nText\n<H3> Sub </H3>\n<h4>Deep</h4>\n<h1>Ignored</h1>";
+  assert.equal(
+    convertHtmlHeadings(raw),
+    "Intro <b>bold</b>\n\n## Scope and Framing\n\nText\n\n### Sub\n\n\n#### Deep\n\n<h1>Ignored</h1>",
+  );
+});
+
+test("renderReactComponents converts headings even when no widget is present", () => {
+  assert.equal(renderReactComponents("<h2>Only heading</h2>\nBody"), "## Only heading\n\nBody");
 });

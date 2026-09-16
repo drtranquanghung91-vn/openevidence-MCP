@@ -104,7 +104,7 @@ const REACT_COMPONENT_MARKER = "REACTCOMPONENT!:!";
  */
 export function renderReactComponents(text: string): string {
   if (!text.includes(REACT_COMPONENT_MARKER)) {
-    return text;
+    return convertHtmlHeadings(text).replace(/\n{3,}/g, "\n\n").trim();
   }
 
   let result = "";
@@ -140,7 +140,18 @@ export function renderReactComponents(text: string): string {
   }
 
   // Collapse runs of 3+ newlines left behind by removed blocks.
-  return result.replace(/\n{3,}/g, "\n\n").trim();
+  return convertHtmlHeadings(result).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * OpenEvidence long-form (Snow) answers use raw <h2>/<h3>/<h4> tags for section
+ * headings. Convert them to markdown so answer_text stays plain markdown.
+ */
+export function convertHtmlHeadings(text: string): string {
+  return text.replace(/<h([2-4])>(.*?)<\/h\1>/gi, (_match, level: string, inner: string) => {
+    const hashes = "#".repeat(Number(level));
+    return `\n${hashes} ${inner.trim()}\n`;
+  });
 }
 
 function renderComponentMarkdown(componentName: string, payload: unknown): string {
@@ -168,6 +179,15 @@ function renderComponentMarkdown(componentName: string, payload: unknown): strin
       return "";
     }
     return `> ${quote}`;
+  }
+
+  if (componentName === "Table") {
+    const tableText = readNonEmptyString(record.table_text);
+    if (tableText) {
+      return `\n${tableText.trim()}\n`;
+    }
+    const table = renderTableData(record.table_data);
+    return table ? `\n${table}\n` : "";
   }
 
   // InlineGenerationStep and any unknown widget types carry no answer content.
@@ -251,6 +271,31 @@ function readNonEmptyString(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function renderTableData(value: unknown): string {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "";
+  }
+  const rows = value.map(readObject).filter((row): row is Record<string, unknown> => row !== null);
+  if (rows.length === 0) {
+    return "";
+  }
+  const headers = Object.keys(rows[0]);
+  if (headers.length === 0) {
+    return "";
+  }
+  const cell = (input: unknown): string =>
+    String(input ?? "")
+      .replace(/\s*\n\s*/g, " ")
+      .replace(/\|/g, "\\|")
+      .trim();
+  const lines = [
+    `| ${headers.map(cell).join(" | ")} |`,
+    `|${headers.map(() => "---").join("|")}|`,
+    ...rows.map((row) => `| ${headers.map((h) => cell(row[h])).join(" | ")} |`),
+  ];
+  return lines.join("\n");
 }
 
 export interface StructuredCitation {
